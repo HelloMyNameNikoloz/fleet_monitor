@@ -1,0 +1,80 @@
+.header-status-badges {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-right: var(--spacing-lg);
+}
+
+.header-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--base-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.header-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+/* Success State */
+.header-badge.success {
+    color: #059669;
+    /* emerald-600 */
+    background: #ecfdf5;
+    /* emerald-50 */
+    border-color: #a7f3d0;
+    /* emerald-200 */
+}
+
+/* Warning State */
+.header-badge.warning {
+    color: #d97706;
+    /* amber-600 */
+    background: #fffbeb;
+    /* amber-50 */
+    border-color: #fde68a;
+    /* amber-200 */
+}
+
+/* Error State */
+.header-badge.error {
+    color: #dc2626;
+    /* red-600 */
+    background: #fef2f2;
+    /* red-50 */
+    border-color: #fecaca;
+    /* red-200 */
+}
+
+/* Dark mode overrides if needed (assuming variables handle it, but hardcoded hex might look bad in dark mode without variables) */
+/* Using variables is safer if base.css defines them. I'll fallback to rgba for better dark mode support */
+
+.header-badge.success {
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.header-badge.warning {
+    color: var(--warning);
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.header-badge.error {
+    color: var(--error);
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.25);
+}

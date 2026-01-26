@@ -1,0 +1,318 @@
+/* =============================================
+   Mini Fleet Monitor - Design System
+   ============================================= */
+
+/* =============================================
+   CSS Variables (Design Tokens)
+   Using 10-30-60 rule:
+   - 60% Base (backgrounds)
+   - 30% Secondary (cards, panels)
+   - 10% Primary (accents, CTAs)
+   ============================================= */
+
+:root {
+    /* Primary Colors (10%) - Accent, Buttons, Highlights */
+    --primary-color: #B88A2D;
+    --primary-hover: #A07826;
+    --primary-light: #D6B36B;
+    --primary-muted: rgba(184, 138, 45, 0.14);
+    --primary-glow: rgba(184, 138, 45, 0.3);
+
+    /* Secondary Colors (30%) - Cards, Panels, Sidebar */
+    --secondary-bg: #F4EFE7;
+    --secondary-hover: #EDE5D9;
+    --secondary-border: rgba(184, 138, 45, 0.18);
+
+    /* Base Colors (60%) - Backgrounds */
+    --base-bg: #F7F3EE;
+    --base-surface: #FFFFFF;
+    --base-elevated: #F1EAE0;
+
+    /* Text Colors */
+    --text-primary: #1A1A1A;
+    --text-secondary: #4D4A46;
+    --text-muted: #8C857B;
+    --text-inverse: #1A140A;
+
+    /* Status Colors */
+    --success: #1C9C72;
+    --success-bg: rgba(28, 156, 114, 0.12);
+    --warning: #C58A17;
+    --warning-bg: rgba(197, 138, 23, 0.12);
+    --error: #C44536;
+    --error-bg: rgba(196, 69, 54, 0.12);
+    --info: #2F6FDB;
+    --info-bg: rgba(47, 111, 219, 0.12);
+
+    /* Robot Status Colors */
+    --status-moving: #1C9C72;
+    --status-idle: #C58A17;
+    --status-offline: #C44536;
+
+    /* Borders & Dividers */
+    --border-color: rgba(26, 20, 10, 0.16);
+    --border-subtle: rgba(26, 20, 10, 0.08);
+    --divider: rgba(26, 20, 10, 0.06);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(26, 20, 10, 0.08);
+    --shadow-md: 0 10px 24px rgba(26, 20, 10, 0.12);
+    --shadow-lg: 0 18px 40px rgba(26, 20, 10, 0.16);
+    --shadow-glow: 0 0 24px var(--primary-glow);
+
+    /* Spacing */
+    --spacing-xs: 0.375rem;
+    --spacing-sm: 0.75rem;
+    --spacing-md: 1.25rem;
+    --spacing-lg: 2rem;
+    --spacing-xl: 2.75rem;
+    --spacing-2xl: 3.5rem;
+
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+
+    /* Typography */
+    --font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+    --font-display: 'Playfair Display', 'Bricolage Grotesque', serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.375rem;
+    --font-size-2xl: 1.75rem;
+    --font-size-3xl: 2.25rem;
+
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --line-height-tight: 1.2;
+    --line-height-normal: 1.6;
+    --line-height-relaxed: 1.8;
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 250ms ease;
+    --transition-slow: 400ms ease;
+
+    /* Layout */
+    --header-height: 72px;
+    --sidebar-width: 260px;
+    --sidebar-collapsed: 72px;
+    --panel-width: 420px;
+
+    /* Z-Index Scale */
+    --z-base: 0;
+    --z-dropdown: 100;
+    --z-sticky: 200;
+    --z-modal: 300;
+    --z-toast: 400;
+    --z-tooltip: 500;
+}
+
+/* Dark Theme Override */
+[data-theme="dark"] {
+    --base-bg: #15171C;
+    --base-surface: #1E2229;
+    --base-elevated: #262B33;
+
+    --secondary-bg: #20252C;
+    --secondary-hover: #2A3039;
+    --secondary-border: rgba(214, 179, 107, 0.2);
+
+    --text-primary: #EAE3D8;
+    --text-secondary: #C7C0B6;
+    --text-muted: #9A9287;
+
+    --border-color: rgba(234, 227, 216, 0.16);
+    --border-subtle: rgba(234, 227, 216, 0.08);
+    --divider: rgba(234, 227, 216, 0.06);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] body {
+    background-image:
+        radial-gradient(1200px 700px at 8% -10%, rgba(184, 138, 45, 0.12), transparent 60%),
+        radial-gradient(900px 600px at 92% 0%, rgba(15, 18, 24, 0.6), transparent 60%);
+}
+
+/* =============================================
+   CSS Reset & Base Styles
+   ============================================= */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-normal);
+    line-height: var(--line-height-normal);
+    color: var(--text-primary);
+    background-color: var(--base-bg);
+    background-image:
+        radial-gradient(1200px 700px at 8% -10%, rgba(184, 138, 45, 0.16), transparent 60%),
+        radial-gradient(900px 600px at 92% 0%, rgba(26, 20, 10, 0.08), transparent 60%);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+#root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* =============================================
+   Typography
+   ============================================= */
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-tight);
+    color: var(--text-primary);
+}
+
+h1 { font-size: var(--font-size-3xl); }
+h2 { font-size: var(--font-size-2xl); }
+h3 { font-size: var(--font-size-xl); }
+h4 { font-size: var(--font-size-lg); }
+h5 { font-size: var(--font-size-base); }
+h6 { font-size: var(--font-size-sm); }
+
+p {
+    color: var(--text-secondary);
+}
+
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    color: var(--primary-light);
+}
+
+/* =============================================
+   Scrollbar Styling
+   ============================================= */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--base-surface);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--secondary-bg);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary-hover);
+}
+
+/* =============================================
+   Selection
+   ============================================= */
+
+::selection {
+    background: var(--primary-muted);
+    color: var(--text-primary);
+}
+
+/* =============================================
+   Focus States
+   ============================================= */
+
+:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* =============================================
+   Utility Classes
+   ============================================= */
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error { color: var(--error); }
+
+.bg-base { background-color: var(--base-bg); }
+.bg-surface { background-color: var(--base-surface); }
+.bg-secondary { background-color: var(--secondary-bg); }
+.bg-primary { background-color: var(--primary-color); }
+
+.font-mono { font-family: var(--font-mono); }
+.font-medium { font-weight: var(--font-weight-medium); }
+.font-semibold { font-weight: var(--font-weight-semibold); }
+.font-bold { font-weight: var(--font-weight-bold); }
+
+/* =============================================
+   Animation Keyframes
+   ============================================= */
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.animate-fade-in { animation: fadeIn var(--transition-base) ease-out; }
+.animate-slide-in-right { animation: slideInRight var(--transition-base) ease-out; }
+.animate-slide-in-up { animation: slideInUp var(--transition-base) ease-out; }
+.animate-pulse { animation: pulse 2s ease-in-out infinite; }
+.animate-spin { animation: spin 1s linear infinite; }
