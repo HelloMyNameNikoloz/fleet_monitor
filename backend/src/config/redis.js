@@ -6,7 +6,7 @@ let subscriber = null;
 async function getClient() {
     if (!client) {
         client = createClient({
-            url: process.env.REDIS_URL
+            url: process.env.REDIS_URL || process.env.REDIS_TLS_URL
         });
 
         client.on('error', (err) => console.error('Redis Client Error:', err));
@@ -20,7 +20,7 @@ async function getClient() {
 async function getSubscriber() {
     if (!subscriber) {
         subscriber = createClient({
-            url: process.env.REDIS_URL
+            url: process.env.REDIS_URL || process.env.REDIS_TLS_URL
         });
 
         subscriber.on('error', (err) => console.error('Redis Subscriber Error:', err));

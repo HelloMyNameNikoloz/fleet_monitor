@@ -3,8 +3,27 @@ import { api, getToken } from '../utils/api';
 
 const RobotsContext = createContext(null);
 
+function resolveWebSocketUrl() {
+    const explicitWs = import.meta.env.VITE_WS_URL;
+    if (explicitWs) return explicitWs;
+
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+        try {
+            const parsed = new URL(apiUrl);
+            const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${wsProtocol}//${parsed.host}`;
+        } catch {
+            // Fall through to window-based resolution
+        }
+    }
+
+    const pageProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${pageProtocol}//${window.location.host}`;
+}
+
 // Direct connection to backend (bypass Vite proxy which can be unstable for specific WS headers)
-const WS_URL = 'ws://127.0.0.1:3001';
+const WS_URL = resolveWebSocketUrl();
 
 export function RobotsProvider({ children }) {
     console.log('ROBOTS CONTEXT LOADED - DIRECT CONNECTION MODE');
