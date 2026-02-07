@@ -3,11 +3,23 @@ const { createClient } = require('redis');
 let client = null;
 let subscriber = null;
 
+function buildRedisOptions() {
+    const url = process.env.REDIS_URL || process.env.REDIS_TLS_URL;
+    if (!url) {
+        return null;
+    }
+
+    const isTls = url.startsWith('rediss://');
+    return {
+        url,
+        socket: isTls ? { tls: true, rejectUnauthorized: false } : undefined
+    };
+}
+
 async function getClient() {
     if (!client) {
-        client = createClient({
-            url: process.env.REDIS_URL || process.env.REDIS_TLS_URL
-        });
+        const options = buildRedisOptions();
+        client = createClient(options || {});
 
         client.on('error', (err) => console.error('Redis Client Error:', err));
         client.on('connect', () => console.log('Connected to Redis'));
@@ -19,9 +31,8 @@ async function getClient() {
 
 async function getSubscriber() {
     if (!subscriber) {
-        subscriber = createClient({
-            url: process.env.REDIS_URL || process.env.REDIS_TLS_URL
-        });
+        const options = buildRedisOptions();
+        subscriber = createClient(options || {});
 
         subscriber.on('error', (err) => console.error('Redis Subscriber Error:', err));
 
