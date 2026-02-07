@@ -10,6 +10,7 @@ import Replay from './pages/Replay';
 import Events from './pages/Events';
 import Zones from './pages/Zones';
 import Settings from './pages/Settings';
+import Logging from './pages/Logging';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -47,6 +48,7 @@ function AppRoutes() {
                                     <Route path="/events" element={<Events />} />
                                     <Route path="/zones" element={<Zones />} />
                                     <Route path="/settings" element={<Settings />} />
+                                    <Route path="/logging" element={<Logging />} />
                                 </Routes>
                             </Dashboard>
                         </RobotsProvider>

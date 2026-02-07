@@ -13,6 +13,7 @@ import Snap from 'ol/interaction/Snap';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import LineString from 'ol/geom/LineString';
+import Polygon from 'ol/geom/Polygon';
 import { Style, Stroke, Circle as CircleStyle, Fill } from 'ol/style';
 import 'ol/ol.css';
 
@@ -27,6 +28,7 @@ export default function PatrolRouteEditor({
     onSaved = () => {}
 }) {
     const mapRef = useRef(null);
+    const controlsRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const routeSourceRef = useRef(null);
     const robotSourceRef = useRef(null);
@@ -45,10 +47,12 @@ export default function PatrolRouteEditor({
     const [routeDirection, setRouteDirection] = useState('cw');
     const [activateOnSave, setActivateOnSave] = useState(true);
     const [manualDraft, setManualDraft] = useState(false);
+    const [newRouteMode, setNewRouteMode] = useState(false);
     const [loadingRoutes, setLoadingRoutes] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [mapReady, setMapReady] = useState(false);
+    const centerPendingRef = useRef(false);
 
     const selectedRobot = useMemo(
         () => robots.find((robot) => Number(robot.id) === Number(selectedRobotId)),
@@ -59,6 +63,9 @@ export default function PatrolRouteEditor({
         () => routes.find((route) => route.is_active),
         [routes]
     );
+
+    const hasRouteContext = Boolean(editingRouteId || newRouteMode);
+    const hasDraft = draftWaypoints.length >= 2;
 
     const refreshRoutes = async (robotId) => {
         if (!robotId) return;
@@ -85,19 +92,45 @@ export default function PatrolRouteEditor({
         setRouteDirection(route?.direction || 'cw');
         setActivateOnSave(Boolean(route?.is_active));
         setManualDraft(false);
+        setNewRouteMode(false);
         setError('');
+        if (controlsRef.current) {
+            controlsRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
+    const centerSelectedRobotOnce = (robot) => {
+        if (!centerPendingRef.current) return;
+        if (!mapInstanceRef.current || !robot) return;
+        if (Number(robot.id) !== Number(selectedRobotId)) return;
+        const lat = Number(robot.lat);
+        const lon = Number(robot.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        mapInstanceRef.current.getView().animate({
+            center: fromLonLat([lon, lat]),
+            zoom: 15,
+            duration: 300
+        });
+        centerPendingRef.current = false;
+    };
+
+    const initializedSelectionRef = useRef(false);
+
     useEffect(() => {
-        if (!open) return;
-        if (initialRobotId) {
-            setSelectedRobotId(initialRobotId);
+        if (!open) {
+            initializedSelectionRef.current = false;
             return;
         }
-        if (!selectedRobotId && robots.length > 0) {
+        if (initializedSelectionRef.current) return;
+
+        if (initialRobotId) {
+            setSelectedRobotId(initialRobotId);
+        } else if (!selectedRobotId && robots.length > 0) {
             setSelectedRobotId(robots[0].id);
         }
-    }, [open, robots, selectedRobotId, initialRobotId]);
+
+        initializedSelectionRef.current = true;
+    }, [open, initialRobotId, robots, selectedRobotId]);
 
     useEffect(() => {
         if (!mapRef.current || mapInstanceRef.current) return;
@@ -183,9 +216,12 @@ export default function PatrolRouteEditor({
             setRouteDirection('cw');
             setActivateOnSave(true);
             setManualDraft(false);
+            setNewRouteMode(false);
+            centerPendingRef.current = false;
             return;
         }
 
+        centerPendingRef.current = true;
         setError('');
         setSelectedZoneId('');
         setEditingRouteId(null);
@@ -193,27 +229,26 @@ export default function PatrolRouteEditor({
         setRouteDirection('cw');
         setActivateOnSave(true);
         setManualDraft(false);
+        setNewRouteMode(false);
         setDraftWaypoints([]);
         setRouteFeature([]);
         refreshRoutes(selectedRobotId);
 
-        if (mapInstanceRef.current && selectedRobot && Number.isFinite(selectedRobot.lat) && Number.isFinite(selectedRobot.lon)) {
-            mapInstanceRef.current.getView().animate({
-                center: fromLonLat([selectedRobot.lon, selectedRobot.lat]),
-                zoom: 15,
-                duration: 300
-            });
-        }
+        centerSelectedRobotOnce(selectedRobot);
     }, [selectedRobotId, selectedRobot, mapReady]);
 
     useEffect(() => {
         if (!mapReady) return;
         robotSourceRef.current?.clear();
-        if (selectedRobot && Number.isFinite(selectedRobot.lat) && Number.isFinite(selectedRobot.lon)) {
+        if (selectedRobot) {
+            const lat = Number(selectedRobot.lat);
+            const lon = Number(selectedRobot.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
             const feature = new Feature({
-                geometry: new Point(fromLonLat([selectedRobot.lon, selectedRobot.lat]))
+                geometry: new Point(fromLonLat([lon, lat]))
             });
             robotSourceRef.current?.addFeature(feature);
+            centerSelectedRobotOnce(selectedRobot);
         }
     }, [selectedRobot, mapReady]);
 
@@ -261,25 +296,37 @@ export default function PatrolRouteEditor({
         if (!routeSourceRef.current) return;
         const feature = routeSourceRef.current.getFeatures()[0];
         const geometry = feature?.getGeometry();
-        if (!(geometry instanceof LineString)) return;
-        const coords = geometry.getCoordinates().map((coord) => {
+        if (!geometry) return;
+        let coords = [];
+        if (geometry instanceof LineString) {
+            coords = geometry.getCoordinates();
+        } else if (geometry instanceof Polygon) {
+            coords = geometry.getCoordinates()[0] || [];
+        } else {
+            return;
+        }
+        const points = coords.map((coord) => {
             const [lon, lat] = toLonLat(coord);
             return { lat, lon };
         });
-        if (coords.length > 1) {
-            const first = coords[0];
-            const last = coords[coords.length - 1];
+        if (points.length > 1) {
+            const first = points[0];
+            const last = points[points.length - 1];
             if (first.lat === last.lat && first.lon === last.lon) {
-                coords.pop();
+                points.pop();
             }
         }
-        setDraftWaypoints(coords);
-        setRouteFeature(coords);
+        setDraftWaypoints(points);
+        setRouteFeature(points);
         setManualDraft(true);
     };
 
     const startDraw = () => {
         if (!mapInstanceRef.current || !routeSourceRef.current) return;
+        if (!editingRouteId && !newRouteMode) {
+            setError('Press "New Route" to start a fresh route.');
+            return;
+        }
         setError('');
         setDrawMode(true);
         setManualDraft(true);
@@ -291,20 +338,40 @@ export default function PatrolRouteEditor({
 
         const draw = new Draw({
             source: routeSourceRef.current,
-            type: 'LineString'
+            type: 'Polygon',
+            snapTolerance: 20
         });
 
         draw.on('drawstart', () => {
             routeSourceRef.current.clear();
         });
 
-        draw.on('drawend', () => {
+        draw.on('drawend', (event) => {
+            const geometry = event.feature?.getGeometry();
+            if (geometry instanceof Polygon) {
+                const ring = geometry.getCoordinates()[0] || [];
+                const points = ring
+                    .map((coord) => {
+                        const [lon, lat] = toLonLat(coord);
+                        return { lat, lon };
+                    })
+                    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+                if (points.length > 1) {
+                    const first = points[0];
+                    const last = points[points.length - 1];
+                    if (first.lat === last.lat && first.lon === last.lon) {
+                        points.pop();
+                    }
+                }
+                setDraftWaypoints(points);
+                setRouteFeature(points);
+                setManualDraft(true);
+            }
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.removeInteraction(draw);
             }
             drawInteractionRef.current = null;
             setDrawMode(false);
-            syncDraftFromSource();
         });
 
         drawInteractionRef.current = draw;
@@ -324,6 +391,11 @@ export default function PatrolRouteEditor({
         setRouteDirection('cw');
         setActivateOnSave(true);
         setManualDraft(true);
+        setNewRouteMode(true);
+        setError('');
+        if (controlsRef.current) {
+            controlsRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     const saveRoute = async () => {
@@ -433,6 +505,7 @@ export default function PatrolRouteEditor({
             setRouteFeature(normalized);
             setEditingRouteId(null);
             setManualDraft(true);
+            setNewRouteMode(true);
             await onSaved();
         } catch (err) {
             console.error('Failed to generate patrol:', err);
@@ -464,12 +537,52 @@ export default function PatrolRouteEditor({
                     <div className="patrol-editor-map-panel">
                         <div ref={mapRef} className="patrol-editor-map" />
                         <div className="patrol-editor-hint">
-                            {drawMode ? 'Drawing... double-click to finish.' : 'Click "Draw Route" to start.'}
+                            {drawMode ? 'Drawing... click the first point to finish.' : 'Click "Draw Route" to start.'}
                         </div>
                     </div>
 
-                    <div className="patrol-editor-controls">
+                    <div className="patrol-editor-controls" ref={controlsRef}>
                         {error && <div className="patrol-editor-error">{error}</div>}
+
+                        <div className="patrol-editor-guide">
+                            <div className="patrol-guide-header">
+                                Route Builder
+                                <span className="patrol-guide-status">
+                                    {hasDraft ? 'Ready to save' : hasRouteContext ? 'Drawing' : 'Start a new route'}
+                                </span>
+                            </div>
+                            <div className="patrol-guide-steps">
+                                <div className={`patrol-guide-step ${selectedRobotId ? 'done' : ''}`}>
+                                    <span className="step-index">1</span>
+                                    <div>
+                                        <div className="step-title">Choose robot</div>
+                                        <div className="step-subtitle">{selectedRobot ? selectedRobot.name : 'Select a robot'}</div>
+                                    </div>
+                                </div>
+                                <div className={`patrol-guide-step ${hasRouteContext ? 'done' : ''}`}>
+                                    <span className="step-index">2</span>
+                                    <div>
+                                        <div className="step-title">Start a route</div>
+                                        <div className="step-subtitle">{editingRouteId ? 'Editing existing' : newRouteMode ? 'New route started' : 'Press “New Route”'}</div>
+                                    </div>
+                                </div>
+                                <div className={`patrol-guide-step ${hasDraft ? 'done' : ''}`}>
+                                    <span className="step-index">3</span>
+                                    <div>
+                                        <div className="step-title">Draw loop</div>
+                                        <div className="step-subtitle">{hasDraft ? `${draftWaypoints.length} points` : 'Click “Draw Route”'}</div>
+                                    </div>
+                                </div>
+                                <div className={`patrol-guide-step ${hasDraft ? 'ready' : ''}`}>
+                                    <span className="step-index">4</span>
+                                    <div>
+                                        <div className="step-title">Save & activate</div>
+                                        <div className="step-subtitle">{hasDraft ? 'Save when ready' : 'Needs a loop'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="patrol-guide-tip">Tip: click the first point to snap & finish.</div>
+                        </div>
 
                         <div className="form-group">
                             <label className="form-label">Robot</label>
@@ -487,6 +600,12 @@ export default function PatrolRouteEditor({
                             </select>
                         </div>
 
+                        <div className="patrol-editor-actions patrol-editor-actions-primary">
+                            <button className="btn btn-primary" onClick={startNewRoute}>
+                                New Route
+                            </button>
+                        </div>
+
                         <div className="form-group">
                             <label className="form-label">Route Name</label>
                             <input
@@ -494,8 +613,15 @@ export default function PatrolRouteEditor({
                                 type="text"
                                 value={routeName}
                                 onChange={(event) => setRouteName(event.target.value)}
-                                placeholder="Patrol Route"
+                                placeholder={editingRouteId || newRouteMode ? 'Patrol Route' : 'Press "New Route" to start'}
+                                disabled={!editingRouteId && !newRouteMode}
                             />
+                            {!editingRouteId && !newRouteMode && (
+                                <div className="patrol-editor-hint-text">Press "New Route" to start a fresh route.</div>
+                            )}
+                            {(editingRouteId || newRouteMode) && (
+                                <div className="patrol-editor-hint-text">Give it a name your team will recognize.</div>
+                            )}
                         </div>
 
                         <div className="form-group">
@@ -541,19 +667,24 @@ export default function PatrolRouteEditor({
                         </div>
 
                         <div className="patrol-editor-actions">
-                            <button className="btn btn-secondary" onClick={startDraw} disabled={drawMode}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={startDraw}
+                                disabled={drawMode || (!editingRouteId && !newRouteMode)}
+                            >
                                 Draw Route
                             </button>
                             <button className="btn btn-ghost" onClick={clearDraft}>
                                 Clear Draft
                             </button>
-                            <button className="btn btn-ghost" onClick={startNewRoute}>
-                                New Route
-                            </button>
                         </div>
 
                         <div className="patrol-editor-actions">
-                            <button className="btn btn-primary" onClick={saveRoute} disabled={saving || draftWaypoints.length < 2}>
+                            <button
+                                className="btn btn-primary"
+                                onClick={saveRoute}
+                                disabled={saving || draftWaypoints.length < 2 || (!editingRouteId && !newRouteMode)}
+                            >
                                 {saving ? 'Saving...' : editingRouteId ? 'Update Route' : 'Save Route'}
                             </button>
                             <button className="btn btn-ghost" onClick={clearPatrol} disabled={saving}>
@@ -614,8 +745,21 @@ export default function PatrolRouteEditor({
                                     {routes.map((route) => {
                                         const waypointCount = normalizeWaypoints(route.waypoints).length;
                                         const isActive = Boolean(route.is_active);
+                                        const isSelected = Number(route.id) === Number(editingRouteId);
                                         return (
-                                            <div key={route.id} className={`patrol-editor-route ${isActive ? 'active' : ''}`}>
+                                            <div
+                                                key={route.id}
+                                                className={`patrol-editor-route ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
+                                                onClick={() => loadRouteIntoDraft(route)}
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                        event.preventDefault();
+                                                        loadRouteIntoDraft(route);
+                                                    }
+                                                }}
+                                            >
                                                 <div>
                                                     <div className="patrol-editor-route-name">
                                                         {route.name}
@@ -628,14 +772,20 @@ export default function PatrolRouteEditor({
                                                 <div className="patrol-editor-route-actions">
                                                     <button
                                                         className="btn btn-ghost btn-xs"
-                                                        onClick={() => loadRouteIntoDraft(route)}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            loadRouteIntoDraft(route);
+                                                        }}
                                                     >
                                                         Edit
                                                     </button>
                                                     {!isActive && (
                                                         <button
                                                             className="btn btn-secondary btn-xs"
-                                                            onClick={() => activateRoute(route.id)}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                activateRoute(route.id);
+                                                            }}
                                                             disabled={saving}
                                                         >
                                                             Activate
@@ -643,7 +793,10 @@ export default function PatrolRouteEditor({
                                                     )}
                                                     <button
                                                         className="btn btn-ghost btn-xs"
-                                                        onClick={() => deleteRoute(route.id)}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            deleteRoute(route.id);
+                                                        }}
                                                         disabled={saving}
                                                     >
                                                         Delete
@@ -731,6 +884,100 @@ export default function PatrolRouteEditor({
                     color: var(--error);
                     border: 1px solid rgba(196, 69, 54, 0.2);
                     font-size: var(--font-size-sm);
+                }
+
+                .patrol-editor-hint-text {
+                    margin-top: 6px;
+                    font-size: var(--font-size-xs);
+                    color: var(--text-muted);
+                }
+
+                .patrol-editor-guide {
+                    border-radius: var(--radius-lg);
+                    border: 1px solid var(--border-subtle);
+                    background: var(--secondary-bg);
+                    padding: var(--spacing-md);
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing-sm);
+                }
+
+                .patrol-guide-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    font-weight: var(--font-weight-semibold);
+                    font-size: var(--font-size-sm);
+                    color: var(--text-primary);
+                }
+
+                .patrol-guide-status {
+                    padding: 2px 10px;
+                    border-radius: var(--radius-full);
+                    font-size: var(--font-size-xs);
+                    background: var(--base-surface);
+                    color: var(--text-muted);
+                }
+
+                .patrol-guide-steps {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing-xs);
+                }
+
+                .patrol-guide-step {
+                    display: flex;
+                    align-items: center;
+                    gap: var(--spacing-sm);
+                    padding: 6px 8px;
+                    border-radius: var(--radius-md);
+                }
+
+                .patrol-guide-step .step-index {
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 50%;
+                    border: 1px solid var(--border-subtle);
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: var(--font-size-xs);
+                    color: var(--text-muted);
+                    background: var(--base-surface);
+                }
+
+                .patrol-guide-step .step-title {
+                    font-size: var(--font-size-sm);
+                    font-weight: var(--font-weight-medium);
+                    color: var(--text-primary);
+                }
+
+                .patrol-guide-step .step-subtitle {
+                    font-size: var(--font-size-xs);
+                    color: var(--text-muted);
+                }
+
+                .patrol-guide-step.done {
+                    background: rgba(35, 161, 105, 0.1);
+                }
+
+                .patrol-guide-step.done .step-index {
+                    border-color: rgba(35, 161, 105, 0.4);
+                    color: var(--success);
+                }
+
+                .patrol-guide-step.ready {
+                    background: rgba(184, 138, 45, 0.15);
+                }
+
+                .patrol-guide-step.ready .step-index {
+                    border-color: rgba(184, 138, 45, 0.5);
+                    color: var(--primary-color);
+                }
+
+                .patrol-guide-tip {
+                    font-size: var(--font-size-xs);
+                    color: var(--text-muted);
                 }
 
                 .patrol-editor-stats {
@@ -889,6 +1136,10 @@ export default function PatrolRouteEditor({
                 .patrol-editor-route.active {
                     border-color: var(--primary-color);
                     box-shadow: var(--shadow-sm), var(--shadow-glow);
+                }
+
+                .patrol-editor-route.selected {
+                    border-color: var(--primary-color);
                 }
 
                 .patrol-editor-route-name {

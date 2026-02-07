@@ -4,14 +4,33 @@ const db = require('../config/db');
 const { authenticate, generateToken } = require('../middleware/auth');
 
 const router = express.Router();
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const MAX_PASSWORD_LENGTH = 72;
+const MIN_PASSWORD_LENGTH = 8;
+
+function normalizeEmail(value) {
+    if (typeof value !== 'string') return '';
+    return value.trim().toLowerCase();
+}
 
 // Register new user
 router.post('/register', async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const email = normalizeEmail(req.body?.email);
+        const password = req.body?.password;
+        const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' });
+        }
+        if (!EMAIL_REGEX.test(email)) {
+            return res.status(400).json({ error: 'Invalid email address' });
+        }
+        if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+            return res.status(400).json({ error: 'Password length invalid' });
+        }
+        if (name && name.length > 100) {
+            return res.status(400).json({ error: 'Name too long' });
         }
 
         // Check if user exists
@@ -49,10 +68,17 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = normalizeEmail(req.body?.email);
+        const password = req.body?.password;
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' });
+        }
+        if (!EMAIL_REGEX.test(email)) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+        if (typeof password !== 'string' || password.length > MAX_PASSWORD_LENGTH) {
+            return res.status(400).json({ error: 'Invalid credentials' });
         }
 
         // Find user

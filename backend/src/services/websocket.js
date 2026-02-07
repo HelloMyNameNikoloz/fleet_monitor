@@ -3,6 +3,16 @@ const jwt = require('jsonwebtoken');
 const redis = require('../config/redis');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key';
+const defaultCorsOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://frontend:5173'
+];
+const envCorsOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+const allowedOrigins = envCorsOrigins.length > 0 ? envCorsOrigins : defaultCorsOrigins;
 
 let wss = null;
 const clients = new Map(); // userId -> Set of ws connections
@@ -12,6 +22,11 @@ function initialize(server) {
     wss = new WebSocketServer({ server, path: '/ws' });
 
     wss.on('connection', (ws, req) => {
+        const origin = req.headers?.origin;
+        if (origin && !allowedOrigins.includes(origin)) {
+            ws.close(1008, 'Origin not allowed');
+            return;
+        }
         console.log('New WebSocket connection');
 
         let userId = null;

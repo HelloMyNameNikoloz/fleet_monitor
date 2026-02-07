@@ -11,6 +11,16 @@ const router = express.Router();
 const ROBOTS_CACHE_KEY = 'robots:all';
 const CACHE_TTL = 10; // seconds
 
+function parseCoordinate(value, fallback) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function isValidLatLon(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+}
+
 // Get all robots (cached)
 router.get('/', authenticate, async (req, res) => {
     try {
@@ -198,10 +208,18 @@ router.post('/:id/move', authenticate, async (req, res) => {
 // Create new robot
 router.post('/', authenticate, async (req, res) => {
     try {
-        const { name, lat = 52.52, lon = 13.405 } = req.body;
+        const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+        const lat = parseCoordinate(req.body?.lat, 52.52);
+        const lon = parseCoordinate(req.body?.lon, 13.405);
 
         if (!name) {
             return res.status(400).json({ error: 'Robot name required' });
+        }
+        if (name.length > 100) {
+            return res.status(400).json({ error: 'Robot name too long' });
+        }
+        if (!isValidLatLon(lat, lon)) {
+            return res.status(400).json({ error: 'Invalid coordinates' });
         }
 
         const result = await db.query(

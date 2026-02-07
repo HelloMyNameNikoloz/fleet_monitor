@@ -136,6 +136,13 @@ export const api = {
         return data;
     },
 
+    async getLogs(limit = 200) {
+        const res = await fetchWithAuth(`/api/logs?limit=${limit}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load logs');
+        return data.logs || [];
+    },
+
     async createAlarm(lat, lon, message) {
         const res = await fetchWithAuth('/api/events/alarm', {
             method: 'POST',

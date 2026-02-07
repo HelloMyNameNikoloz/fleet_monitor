@@ -36,12 +36,22 @@ const SettingsIcon = () => (
     </svg>
 );
 
+const LogIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 4h16v16H4z" />
+        <line x1="7" y1="8" x2="17" y2="8" />
+        <line x1="7" y1="12" x2="17" y2="12" />
+        <line x1="7" y1="16" x2="13" y2="16" />
+    </svg>
+);
+
 const navItems = [
     { path: '/monitor', label: 'Live Monitor', icon: MonitorIcon },
     { path: '/replay', label: 'Replay', icon: PlayIcon },
     { path: '/events', label: 'Events', icon: ActivityIcon },
     { path: '/zones', label: 'Zones', icon: MapPinIcon },
     { path: '/settings', label: 'Settings', icon: SettingsIcon },
+    { path: '/logging', label: 'Logging', icon: LogIcon },
 ];
 
 export default function Sidebar({ collapsed = false }) {

@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -10,14 +12,26 @@ const robotsRoutes = require('./routes/robots');
 const eventsRoutes = require('./routes/events');
 const zonesRoutes = require('./routes/zones');
 const replayRoutes = require('./routes/replay');
+const logsRoutes = require('./routes/logs');
 
 // Import services
 const websocketService = require('./services/websocket');
 const simulationService = require('./services/simulation');
 const bootstrap = require('./services/bootstrap');
+const logStore = require('./services/logStore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+if (NODE_ENV === 'production') {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev-secret-key') {
+        throw new Error('JWT_SECRET must be set in production.');
+    }
+}
+
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
 // Middleware
 const defaultCorsOrigins = [
@@ -39,25 +53,64 @@ app.use(cors({
     },
     credentials: true
 }));
-app.use(express.json());
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+const apiLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+const authLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many authentication attempts. Try again later.' }
+});
+
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
+
+app.use(express.json({ limit: '500kb' }));
+app.use(express.urlencoded({ extended: false, limit: '500kb' }));
 
 // Request logging middleware (Flask-style)
 app.use((req, res, next) => {
     const start = Date.now();
     const timestamp = new Date().toISOString();
+    const redactKeys = new Set(['password', 'token', 'authorization', 'access_token', 'refresh_token', 'jwt']);
+    const sanitize = (value) => {
+        if (!value || typeof value !== 'object') return value;
+        if (Array.isArray(value)) {
+            return value.map(sanitize);
+        }
+        const output = {};
+        Object.entries(value).forEach(([key, val]) => {
+            if (redactKeys.has(String(key).toLowerCase())) {
+                output[key] = '***';
+            } else {
+                output[key] = sanitize(val);
+            }
+        });
+        return output;
+    };
+    const sanitizedQuery = Object.keys(req.query).length > 0 ? sanitize(req.query) : null;
+    const sanitizedBody = req.body && Object.keys(req.body).length > 0 ? sanitize(req.body) : null;
 
     // Log request
     console.log(`\n\x1b[36m──────────────────────────────────────────────\x1b[0m`);
     console.log(`\x1b[33m${req.method}\x1b[0m ${req.path} \x1b[90m@ ${timestamp}\x1b[0m`);
 
-    if (Object.keys(req.query).length > 0) {
-        console.log(`\x1b[90m  Query:\x1b[0m`, req.query);
+    if (sanitizedQuery) {
+        console.log(`\x1b[90m  Query:\x1b[0m`, sanitizedQuery);
     }
-    if (req.body && Object.keys(req.body).length > 0) {
-        // Don't log passwords
-        const safeBody = { ...req.body };
-        if (safeBody.password) safeBody.password = '***';
-        console.log(`\x1b[90m  Body:\x1b[0m`, safeBody);
+    if (sanitizedBody) {
+        console.log(`\x1b[90m  Body:\x1b[0m`, sanitizedBody);
     }
 
     // Capture response
@@ -74,6 +127,21 @@ app.use((req, res, next) => {
 
         return originalJson(body);
     };
+
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logStore.addLog({
+            timestamp,
+            method: req.method,
+            path: req.path,
+            status: res.statusCode,
+            durationMs: duration,
+            ip: req.ip,
+            userId: req.user?.id || null,
+            query: sanitizedQuery || undefined,
+            body: sanitizedBody || undefined
+        });
+    });
 
     next();
 });
@@ -93,6 +161,7 @@ app.use('/api/robots', robotsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/zones', zonesRoutes);
 app.use('/api/replay', replayRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Simulation control endpoints
 app.post('/api/simulation/start', (req, res) => {
